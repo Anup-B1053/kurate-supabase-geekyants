@@ -8,9 +8,31 @@
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_handle TEXT;
+  v_base   TEXT;
 BEGIN
-  INSERT INTO public.profiles (id)
-  VALUES (NEW.id);
+  -- Derive a base handle from email (part before @)
+  v_base := split_part(NEW.email, '@', 1);
+  -- Append 4 random digits to reduce collision chance
+  v_handle := v_base || floor(random() * 9000 + 1000)::TEXT;
+
+  INSERT INTO public.profiles (
+    id,
+    first_name,
+    last_name,
+    handle,
+    avtar_url
+  ) VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data->>'given_name',
+    NEW.raw_user_meta_data->>'family_name',
+    v_handle,
+    COALESCE(
+      NEW.raw_user_meta_data->>'avatar_url',
+      NEW.raw_user_meta_data->>'picture'
+    )
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

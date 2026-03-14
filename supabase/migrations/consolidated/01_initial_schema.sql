@@ -8,9 +8,9 @@
 
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL,
-  handle TEXT NOT NULL,
+  first_name TEXT,
+  last_name TEXT,
+  handle TEXT,
   about TEXT,
   interests TEXT[] DEFAULT '{}',
   is_onboarded BOOLEAN NOT NULL DEFAULT FALSE,
@@ -518,7 +518,7 @@ CREATE POLICY "Users can upsert own monthly stats"
 CREATE POLICY "Users can UPDATE own monthly stats"
   ON public.user_stats_monthly FOR UPDATE
   USING (auth.uid() = user_id);
-
+  
 
 -- ── Conversations ─────────────────────────────────────────────
 
