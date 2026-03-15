@@ -196,23 +196,38 @@ CREATE POLICY conversation_members_update ON public.conversation_members FOR UPD
 
 -- ── Conversations RLS (deferred until conversation_members exists) ────
 
-CREATE POLICY conversations_select ON public.conversations FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_members
-      WHERE convo_id = conversations.id AND user_id = auth.uid()
-    )
-  );
+-- CREATE POLICY conversations_select ON public.conversations FOR SELECT TO authenticated
+--   USING (
+--     EXISTS (
+--       SELECT 1 FROM public.conversation_members
+--       WHERE convo_id = conversations.id AND user_id = auth.uid()
+--     )
+--   );
 
-CREATE POLICY conversations_insert ON public.conversations FOR INSERT TO authenticated WITH CHECK (true);
+-- CREATE POLICY conversations_insert ON public.conversations FOR INSERT TO authenticated WITH CHECK (true);
 
-CREATE POLICY conversations_update ON public.conversations FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_members
-      WHERE convo_id = conversations.id AND user_id = auth.uid()
-    )
-  );
+-- CREATE POLICY conversations_update ON public.conversations FOR UPDATE TO authenticated
+--   USING (
+--     EXISTS (
+--       SELECT 1 FROM public.conversation_members
+--       WHERE convo_id = conversations.id AND user_id = auth.uid()
+--     )
+--   );
+
+CREATE POLICY "Users can VIEW own convo"
+  ON public.conversations FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can INSERT own convo"
+  ON public.conversations FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Users can UPDATE own convo"
+  ON public.conversations FOR UPDATE
+  TO authenticated
+  USING (true);
 
 
 
