@@ -342,26 +342,42 @@ CREATE POLICY group_posts_delete ON public.group_posts FOR DELETE TO authenticat
 
 
 
--- ──  group post reactions ─────────────────────────────────────────────
+-- ──  group post likes ─────────────────────────────────────────────
 
-CREATE TYPE reaction_type_enum AS ENUM ('like', 'must_read');
-
-CREATE TABLE IF NOT EXISTS public.group_post_reactions (
+CREATE TABLE IF NOT EXISTS public.group_posts_likes (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_post_id UUID NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,
   user_id       UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  reaction_type reaction_type_enum NOT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (group_post_id, user_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_group_post_reactions_post_id ON public.group_post_reactions (group_post_id);
+CREATE INDEX IF NOT EXISTS idx_group_posts_likes ON public.group_posts_likes (group_post_id);
 
-ALTER TABLE public.group_post_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_posts_likes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY group_post_reactions_select ON public.group_post_reactions FOR SELECT TO authenticated USING (true);
-CREATE POLICY group_post_reactions_insert ON public.group_post_reactions FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
-CREATE POLICY group_post_reactions_delete ON public.group_post_reactions FOR DELETE TO authenticated USING (user_id = auth.uid());
+CREATE POLICY group_posts_likes_select ON public.group_posts_likes FOR SELECT TO authenticated USING (true);
+CREATE POLICY group_posts_likes_insert ON public.group_posts_likes FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY group_posts_likes_delete ON public.group_posts_likes FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+
+-- ──  group post must_reads ─────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.group_posts_must_reads (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_post_id UUID NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (group_post_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_posts_must_reads ON public.group_posts_must_reads (group_post_id);
+
+ALTER TABLE public.group_posts_must_reads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY group_posts_must_reads_select ON public.group_posts_must_reads FOR SELECT TO authenticated USING (true);
+CREATE POLICY group_posts_must_reads_insert ON public.group_posts_must_reads FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY group_posts_must_reads_delete ON public.group_posts_must_reads FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 
 
