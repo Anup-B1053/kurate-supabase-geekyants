@@ -460,6 +460,7 @@ CREATE TABLE IF NOT EXISTS public.user_logged_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   logged_item_id UUID NOT NULL REFERENCES public.logged_items(id) ON DELETE CASCADE,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
   save_source save_source_enum NOT NULL DEFAULT 'external',
   author uuid DEFAULT null REFERENCES public.profiles(id),
   shared_by uuid DEFAULT null REFERENCES public.profiles(id),
