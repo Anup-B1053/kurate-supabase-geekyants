@@ -6,9 +6,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   last_name TEXT,
   handle TEXT UNIQUE,
   about TEXT,
-
-  interests TEXT[] DEFAULT '{}',
-
   is_onboarded BOOLEAN NOT NULL DEFAULT FALSE,
   avtar_url TEXT,
   xp INTEGER NOT NULL DEFAULT 0,
@@ -80,6 +77,35 @@ CREATE POLICY "Anyone can VIEW interests"
   ON public.interests FOR SELECT
   USING (TRUE);
 
+
+-- ── User interests ─────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.user_interests (
+  id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  interest_id UUID UNIQUE NOT NULL REFERENCES public.interests(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_interests_user_id ON public.logged_items (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_interests_user_id ON public.logged_items (interest_id);
+
+ALTER TABLE public.user_interests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "User can can VIEW own interests"
+  ON public.user_interests FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can INSERT own interests"
+  ON public.user_interests FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can UPDATE own interests"
+  ON public.user_interests FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id);
 
 
 -- ── Logged Categories ─────────────────────────────────────────
