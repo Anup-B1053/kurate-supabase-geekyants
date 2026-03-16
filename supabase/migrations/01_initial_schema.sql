@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS public.user_interests (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_interests_user_id ON public.logged_items (user_id);
-CREATE INDEX IF NOT EXISTS idx_user_interests_user_id ON public.logged_items (interest_id);
+CREATE INDEX IF NOT EXISTS idx_user_interests_user_id ON public.user_interests (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_interests_user_id ON public.user_interests (interest_id);
 
 ALTER TABLE public.user_interests ENABLE ROW LEVEL SECURITY;
 
