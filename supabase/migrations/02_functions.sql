@@ -280,3 +280,111 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_update_reading_time
   AFTER UPDATE ON public.reading_sessions
   FOR EACH ROW EXECUTE FUNCTION public.update_reading_time_on_session();
+
+
+-- ── Group Invite Email Notification ───────────────────────────
+
+CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
+
+CREATE OR REPLACE FUNCTION public.notify_group_invite_email()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM extensions.net.http_post(
+    url     := current_setting('app.edge_function_base_url', true) || '/send-group-invite-email',
+    headers := jsonb_build_object(
+                 'Content-Type', 'application/json',
+                 'Authorization', 'Bearer ' || current_setting('app.service_role_key', true)
+               ),
+    body    := jsonb_build_object(
+                 'invite_id',   NEW.id,
+                 'group_id',    NEW.group_id,
+                 'invited_by',  NEW.invited_by,
+                 'email',       NEW.email,
+                 'invite_code', NEW.invite_code,
+                 'expires_at',  NEW.expires_at
+               )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_notify_group_invite_email
+  AFTER INSERT ON public.group_invites
+  FOR EACH ROW
+  EXECUTE FUNCTION public.notify_group_invite_email();
+
+
+-- ── Accept Group Invite ────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.accept_group_invite(p_invite_code TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_invite    public.group_invites%ROWTYPE;
+  v_member_id UUID;
+BEGIN
+  SELECT * INTO v_invite
+  FROM public.group_invites
+  WHERE invite_code = p_invite_code
+  FOR UPDATE;  -- prevents concurrent double-accepts
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'invite_not_found');
+  END IF;
+
+  IF v_invite.status <> 'pending' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'invite_already_used', 'status', v_invite.status);
+  END IF;
+
+  IF v_invite.expires_at < now() THEN
+    UPDATE public.group_invites SET status = 'expired' WHERE id = v_invite.id;
+    RETURN jsonb_build_object('success', false, 'error', 'invite_expired');
+  END IF;
+
+  -- Enforce group member cap
+  IF (SELECT COUNT(*) FROM public.conversation_members WHERE convo_id = v_invite.group_id)
+     >= (SELECT group_max_members FROM public.conversations WHERE id = v_invite.group_id)
+  THEN
+    RETURN jsonb_build_object('success', false, 'error', 'group_full');
+  END IF;
+
+  -- UPSERT: user may already be a member (joined via shareable link)
+  INSERT INTO public.conversation_members (convo_id, user_id)
+  VALUES (v_invite.group_id, auth.uid())
+  ON CONFLICT (convo_id, user_id) DO NOTHING
+  RETURNING id INTO v_member_id;
+
+  UPDATE public.group_invites
+  SET status = 'accepted', accepted_at = now()
+  WHERE id = v_invite.id;
+
+  RETURN jsonb_build_object(
+    'success',   true,
+    'group_id',  v_invite.group_id,
+    'member_id', COALESCE(v_member_id,
+      (SELECT id FROM public.conversation_members WHERE convo_id = v_invite.group_id AND user_id = auth.uid()))
+  );
+END;
+$$;
+
+
+-- ── Expire Stale Invites ───────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.expire_stale_invites()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE v_count INTEGER;
+BEGIN
+  UPDATE public.group_invites
+  SET status = 'expired'
+  WHERE status = 'pending' AND expires_at < now();
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+-- Optional: schedule with pg_cron (enable extension first)
+-- SELECT cron.schedule('expire-group-invites', '0 * * * *', 'SELECT public.expire_stale_invites()');

@@ -760,3 +760,76 @@ CREATE POLICY "Users can upsert own monthly stats"
 CREATE POLICY "Users can UPDATE own monthly stats"
   ON public.user_stats_monthly FOR UPDATE
   USING (auth.uid() = user_id);
+
+
+
+-- ── Group Invites ──────────────────────────────────────────────
+
+CREATE TYPE invite_status_enum AS ENUM ('pending', 'accepted', 'declined', 'expired');
+
+CREATE TABLE IF NOT EXISTS public.group_invites (
+  id          UUID               PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id    UUID               NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  invited_by  UUID               NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  email       TEXT               NOT NULL,
+  invite_code TEXT               NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(24), 'hex'),
+  status      invite_status_enum NOT NULL DEFAULT 'pending',
+  created_at  TIMESTAMPTZ        NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ        NOT NULL DEFAULT now() + INTERVAL '7 days',
+  accepted_at TIMESTAMPTZ        DEFAULT NULL
+);
+
+-- Lookup by code (acceptance flow — most critical path)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_invites_code
+  ON public.group_invites (invite_code);
+
+-- Prevent duplicate pending invite to same email for same group
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_invites_pending_per_email
+  ON public.group_invites (group_id, email)
+  WHERE status = 'pending';
+
+-- Sweep expired invites efficiently
+CREATE INDEX IF NOT EXISTS idx_group_invites_status_expires
+  ON public.group_invites (status, expires_at)
+  WHERE status = 'pending';
+
+-- List invites for a group (admin/member view)
+CREATE INDEX IF NOT EXISTS idx_group_invites_group_id
+  ON public.group_invites (group_id, created_at DESC);
+
+-- List invites sent by a user
+CREATE INDEX IF NOT EXISTS idx_group_invites_invited_by
+  ON public.group_invites (invited_by, created_at DESC);
+
+ALTER TABLE public.group_invites ENABLE ROW LEVEL SECURITY;
+
+-- Any group member can view invites for their groups
+CREATE POLICY group_invites_select ON public.group_invites
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.conversation_members
+      WHERE convo_id = group_invites.group_id
+        AND user_id = auth.uid()
+    )
+  );
+
+-- Any group member can send invites (invited_by must be self)
+-- NOTE: Restrict to role = 'admin' once conversation_members.role values are defined
+CREATE POLICY group_invites_insert ON public.group_invites
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    invited_by = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.conversation_members
+      WHERE convo_id = group_invites.group_id
+        AND user_id = auth.uid()
+    )
+  );
+
+-- Inviter can cancel their own pending invite
+CREATE POLICY group_invites_delete ON public.group_invites
+  FOR DELETE TO authenticated
+  USING (invited_by = auth.uid() AND status = 'pending');
+
+-- No UPDATE policy for authenticated users — status transitions via SECURITY DEFINER functions only
