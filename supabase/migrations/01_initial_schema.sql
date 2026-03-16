@@ -142,7 +142,6 @@ CREATE POLICY "Authenticated users can view logged items"
 
 CREATE POLICY "Authenticated users can insert logged items"
   ON public.logged_items FOR INSERT
-  TO authenticated
   WITH CHECK (true);
 
 
