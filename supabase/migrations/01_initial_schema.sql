@@ -4,12 +4,12 @@ CREATE TYPE theme_pref_enum AS ENUM ('light', 'dark', 'auto');
 
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  first_name TEXT,
-  last_name TEXT,
-  handle TEXT UNIQUE,
+  first_name VARCHAR(50),
+  last_name VARCHAR(50),
+  handle VARCHAR(50) UNIQUE,
   about TEXT,
   is_onboarded BOOLEAN NOT NULL DEFAULT FALSE,
-  avtar_url TEXT,
+  avtar_url VARCHAR(100),
   xp INTEGER NOT NULL DEFAULT 0,
   theme_pref theme_pref_enum NOT NULL DEFAULT 'light',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -41,7 +41,7 @@ CREATE POLICY "Users can UPDATE own profile"
 
 CREATE TABLE IF NOT EXISTS public.companions (
   user_id uuid PRIMARY KEY NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  name text NOT NULL,
+  name VARCHAR(50) NOT NULL,
   stage SMALLINT NOT NULL DEFAULT 1,
   avatar_url text NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -69,7 +69,7 @@ CREATE POLICY "Users can UPDATE own companion"
 
 CREATE TABLE IF NOT EXISTS public.interests (
   id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
+  name VARCHAR(20) NOT NULL UNIQUE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
@@ -114,9 +114,9 @@ CREATE POLICY "Users can UPDATE own interests"
 
 CREATE TABLE IF NOT EXISTS public.logged_categories (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name       TEXT NOT NULL UNIQUE,
-  slug       TEXT NOT NULL UNIQUE,
-  color      TEXT NOT NULL DEFAULT '#1A1A1A',
+  name       VARCHAR(20) NOT NULL UNIQUE,
+  slug       VARCHAR(20) NOT NULL UNIQUE,
+  color      VARCHAR(10) NOT NULL DEFAULT '#1A1A1A',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS public.logged_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   url TEXT NOT NULL,
   url_hash TEXT UNIQUE NOT NULL,
-  title TEXT NOT NULL,
+  title VARCHAR(150) NOT NULL,
   description TEXT,
   category_id UUID REFERENCES public.logged_categories(id) ON DELETE SET NULL,
   preview_image_url TEXT,
@@ -178,10 +178,10 @@ CREATE POLICY "Authenticated users can insert logged items"
 CREATE TABLE IF NOT EXISTS public.conversations (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   is_group    boolean DEFAULT FALSE,
-  group_name  TEXT UNIQUE DEFAULT null,  -- NULL for DMs, set for groups
+  group_name  VARCHAR(20) UNIQUE DEFAULT null,  -- NULL for DMs, set for groups
   group_max_members INTEGER NOT NULL DEFAULT 50,
-  group_description TEXT NULL,
-  invite_code text UNIQUE NOT NULL,
+  group_description VARCHAR(200) NULL,
+  invite_code VARCHAR(30) UNIQUE NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -200,7 +200,7 @@ CREATE TABLE IF NOT EXISTS public.conversation_members (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   convo_id    UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  role        TEXT DEFAULT null,
+  role        VARCHAR(50) DEFAULT null,
   joined_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (convo_id, user_id)
@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS public.messages (
   convo_id       UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   sender_id      UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   message_type   message_type_enum DEFAULT 'text',
-  message_text   TEXT NOT NULL,
+  message_text   VARCHAR(500) NOT NULL,
   logged_item_id UUID DEFAULT NULL REFERENCES public.logged_items(id) ON DELETE SET NULL,
   message_parent_id UUID DEFAULT NULL REFERENCES public.messages(id),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -310,7 +310,7 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id  UUID NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  emoji       TEXT NOT NULL,
+  emoji       CHAR(1) NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (message_id, user_id, emoji)
 );
@@ -353,7 +353,7 @@ CREATE TABLE IF NOT EXISTS public.group_posts (
   convo_id       UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   logged_item_id UUID DEFAULT null REFERENCES public.logged_items(id) ON DELETE SET NULL,
   shared_by      UUID NOT NULL REFERENCES public.profiles(id),
-  note           TEXT,
+  note           VARCHAR(500),
   shared_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -429,7 +429,7 @@ CREATE TABLE IF NOT EXISTS public.group_posts_comments (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_post_id     UUID NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,
   user_id           UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  comment_text      TEXT NOT NULL,
+  comment_text      VARCHAR(500) NOT NULL,
   parent_comment_id UUID DEFAULT null REFERENCES public.group_posts_comments(id),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -495,7 +495,7 @@ CREATE TABLE IF NOT EXISTS public.group_posts_comments_reactions (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comment_id  UUID NOT NULL REFERENCES public.group_posts_comments(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  emoji       TEXT NOT NULL,
+  emoji       CHAR(1) NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (comment_id, user_id, emoji)
 );
@@ -523,7 +523,7 @@ CREATE TABLE IF NOT EXISTS public.user_logged_items (
   author uuid DEFAULT null REFERENCES public.profiles(id),
   shared_by uuid DEFAULT null REFERENCES public.profiles(id),
   saved_from_group uuid DEFAULT null REFERENCES public.conversations(id) ON DELETE SET NULL,
-  remarks TEXT,
+  remarks VARCHAR(200),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -608,7 +608,7 @@ CREATE POLICY "Users can UPDATE own reading sessions"
 CREATE TABLE IF NOT EXISTS public.events (
   id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
   type        TEXT NOT NULL UNIQUE,
-  description TEXT NOT NULL
+  description VARCHAR(200) NOT NULL
 );
 
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
@@ -665,8 +665,8 @@ CREATE POLICY "Users can VIEW events targeting them"
 CREATE TABLE IF NOT EXISTS public.stat_snapshots (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  slug         TEXT        NOT NULL UNIQUE,
-  period_label TEXT        NOT NULL,  -- e.g. "Jan 2025", "Last 30 days"
+  slug         VARCHAR(50) NOT NULL UNIQUE,
+  period_label VARCHAR(50) NOT NULL,  -- e.g. "Jan 2025", "Last 30 days"
   stats_json   JSONB       NOT NULL DEFAULT '{}',
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
