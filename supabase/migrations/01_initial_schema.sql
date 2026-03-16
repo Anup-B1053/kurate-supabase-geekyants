@@ -1,5 +1,7 @@
 -- ── Profiles ──────────────────────────────────────────────────
 
+CREATE TYPE theme_pref_enum AS ENUM ('light', 'dark', 'auto');
+
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   first_name TEXT,
@@ -9,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   is_onboarded BOOLEAN NOT NULL DEFAULT FALSE,
   avtar_url TEXT,
   xp INTEGER NOT NULL DEFAULT 0,
-  theme_pref TEXT,
+  theme_pref theme_pref_enum NOT NULL DEFAULT 'light',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
