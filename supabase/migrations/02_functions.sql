@@ -343,6 +343,11 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'invite_expired');
   END IF;
 
+  -- Verify caller's email matches the invite recipient
+  IF lower(auth.jwt() ->> 'email') <> lower(v_invite.email) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'email_mismatch');
+  END IF;
+
   -- Enforce group member cap
   IF (SELECT COUNT(*) FROM public.conversation_members WHERE convo_id = v_invite.group_id)
      >= (SELECT group_max_members FROM public.conversations WHERE id = v_invite.group_id)
