@@ -20,10 +20,10 @@ CREATE INDEX IF NOT EXISTS idx_profiles_handle ON public.profiles (handle);
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can VIEW own profile"
+CREATE POLICY "Users can VIEW everyone's profile"
   ON public.profiles FOR SELECT
   TO authenticated
-  USING (auth.uid() = id);
+  USING (true);
 
 CREATE POLICY "Users can INSERT own profile"
   ON public.profiles FOR INSERT
