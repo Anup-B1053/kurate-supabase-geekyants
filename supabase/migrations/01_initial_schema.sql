@@ -161,6 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_logged_items_created ON public.logged_items (crea
 CREATE UNIQUE INDEX IF NOT EXISTS idx_logged_items_url_hash ON public.logged_items (url_hash);
 CREATE INDEX idx_logged_items_search ON public.logged_items
   USING gin(to_tsvector('english'::regconfig, coalesce(title, '') || ' ' || coalesce(public.text_array_to_string(tags, ' '), '')));
+CREATE INDEX idx_logged_items_tags_gin ON public.logged_items USING GIN (tags);
 
 ALTER TABLE public.logged_items ENABLE ROW LEVEL SECURITY;
 
