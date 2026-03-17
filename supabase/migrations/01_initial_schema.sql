@@ -172,7 +172,13 @@ CREATE POLICY "Authenticated users can view logged items"
 
 CREATE POLICY "Authenticated users can insert logged items"
   ON public.logged_items FOR INSERT
+  TO authenticated
   WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update logged items"
+  ON public.logged_items FOR UPDATE
+  TO authenticated
+  USING (true);
 
 
 -- ── Conversations (DMs + Groups) ─────────────────────────────────────────────
@@ -382,26 +388,47 @@ ALTER PUBLICATION supabase_realtime ADD TABLE group_posts;
 
 ALTER TABLE public.group_posts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY group_posts_select ON public.group_posts FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_members
-      WHERE convo_id = group_posts.convo_id AND user_id = auth.uid()
-    )
-  );
+-- CREATE POLICY group_posts_select ON public.group_posts FOR SELECT TO authenticated
+--   USING (
+--     EXISTS (
+--       SELECT 1 FROM public.conversation_members
+--       WHERE convo_id = group_posts.convo_id AND user_id = auth.uid()
+--     )
+--   );
 
-CREATE POLICY group_posts_insert ON public.group_posts FOR INSERT TO authenticated
-  WITH CHECK (
-    shared_by = auth.uid() AND
-    EXISTS (
-      SELECT 1 FROM public.conversation_members
-      WHERE convo_id = group_posts.convo_id AND user_id = auth.uid()
-    )
-  );
+-- CREATE POLICY group_posts_insert ON public.group_posts FOR INSERT TO authenticated
+--   WITH CHECK (
+--     shared_by = auth.uid() AND
+--     EXISTS (
+--       SELECT 1 FROM public.conversation_members
+--       WHERE convo_id = group_posts.convo_id AND user_id = auth.uid()
+--     )
+--   );
 
-CREATE POLICY group_posts_delete ON public.group_posts FOR DELETE TO authenticated
-  USING (shared_by = auth.uid());
+-- CREATE POLICY group_posts_delete ON public.group_posts FOR DELETE TO authenticated
+--   USING (shared_by = auth.uid());
 
+
+
+CREATE POLICY group_posts_select
+  ON public.group_posts FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY group_posts_insert
+  ON public.group_posts FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY group_posts_update
+  ON public.group_posts FOR UPDATE
+  TO authenticated
+  USING (true);
+
+CREATE POLICY group_posts_delete 
+  ON public.group_posts FOR DELETE 
+  TO authenticated
+  USING (true);
 
 
 -- ──  group post likes ─────────────────────────────────────────────
