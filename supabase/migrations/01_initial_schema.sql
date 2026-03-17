@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS public.conversations (
 );
 
 CREATE INDEX idx_conversations_updated ON public.conversations (updated_at DESC);
+CREATE INDEX idx_conversations_is_group ON public.conversations (is_group);
 
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 
