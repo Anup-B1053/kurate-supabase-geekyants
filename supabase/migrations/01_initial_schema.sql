@@ -212,14 +212,23 @@ CREATE INDEX IF NOT EXISTS idx_conversation_members_user_id ON public.conversati
 
 ALTER TABLE public.conversation_members ENABLE ROW LEVEL SECURITY;
 
--- Simple self-only check to avoid circular dependency with conversations RLS
-CREATE POLICY conversation_members_select ON public.conversation_members FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
+-- -- Simple self-only check to avoid circular dependency with conversations RLS
+-- CREATE POLICY conversation_members_select ON public.conversation_members FOR SELECT TO authenticated
+--   USING (user_id = auth.uid());
 
-CREATE POLICY conversation_members_insert ON public.conversation_members FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY conversation_members_select
+  ON public.conversation_members FOR SELECT
+  TO authenticated
+  USING (true);
 
-CREATE POLICY conversation_members_update ON public.conversation_members FOR UPDATE TO authenticated
-  USING (user_id = auth.uid());
+CREATE POLICY conversation_members_insert 
+  ON public.conversation_members FOR INSERT 
+  TO authenticated WITH CHECK (true);
+
+CREATE POLICY conversation_members_update 
+  ON public.conversation_members FOR UPDATE 
+  TO authenticated
+  USING (true);
 
 -- ── Conversations RLS (deferred until conversation_members exists) ────
 
