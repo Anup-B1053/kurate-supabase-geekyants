@@ -199,11 +199,13 @@ ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 
 -- ── Conversation members ─────────────────────────────────────────────
 
+CREATE TYPE role_enum AS ENUM ('owner', 'admin', 'member');
+
 CREATE TABLE IF NOT EXISTS public.conversation_members (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   convo_id    UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  role        VARCHAR(50) DEFAULT null,
+  role        role_enum NOT NULL DEFAULT 'member',
   joined_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (convo_id, user_id)
