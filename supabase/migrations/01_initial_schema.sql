@@ -343,7 +343,7 @@ CREATE TABLE IF NOT EXISTS public.message_read_receipts (
   message_id  UUID NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   delivered_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  read_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at     TIMESTAMPTZ DEFAULT NULL,
   UNIQUE (message_id, user_id)
 );
 
@@ -466,7 +466,7 @@ CREATE TABLE IF NOT EXISTS public.group_post_comments_read_receipts (
   comment_id  UUID NOT NULL REFERENCES public.group_posts_comments(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   delivered_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  read_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at     TIMESTAMPTZ DEFAULT NULL,
   UNIQUE (comment_id, user_id)
 );
 
@@ -485,8 +485,7 @@ CREATE TABLE IF NOT EXISTS public.group_post_reads (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_post_id  UUID NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  read_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  read_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_group_post_reads_message_id ON public.group_post_reads (group_post_id);
