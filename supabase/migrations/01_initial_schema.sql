@@ -291,6 +291,8 @@ CREATE TABLE IF NOT EXISTS public.messages (
 CREATE INDEX IF NOT EXISTS idx_messages_convo_id ON public.messages (convo_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON public.messages (sender_id);
 
+ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY messages_select ON public.messages FOR SELECT TO authenticated
@@ -330,6 +332,8 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_message_reactions_message_id ON public.message_reactions (message_id);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE message_reactions;
 
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
 
@@ -374,6 +378,8 @@ CREATE TABLE IF NOT EXISTS public.group_posts (
 CREATE INDEX IF NOT EXISTS idx_group_posts_convo_id ON public.group_posts (convo_id, shared_at DESC);
 CREATE INDEX IF NOT EXISTS idx_group_posts_shared_by ON public.group_posts (shared_by);
 
+ALTER PUBLICATION supabase_realtime ADD TABLE group_posts;
+
 ALTER TABLE public.group_posts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY group_posts_select ON public.group_posts FOR SELECT TO authenticated
@@ -410,6 +416,8 @@ CREATE TABLE IF NOT EXISTS public.group_posts_likes (
 
 CREATE INDEX IF NOT EXISTS idx_group_posts_likes ON public.group_posts_likes (group_post_id);
 
+ALTER PUBLICATION supabase_realtime ADD TABLE group_posts_likes;
+
 ALTER TABLE public.group_posts_likes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY group_posts_likes_select ON public.group_posts_likes FOR SELECT TO authenticated USING (true);
@@ -428,6 +436,8 @@ CREATE TABLE IF NOT EXISTS public.group_posts_must_reads (
 );
 
 CREATE INDEX IF NOT EXISTS idx_group_posts_must_reads ON public.group_posts_must_reads (group_post_id);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE group_posts_must_reads;
 
 ALTER TABLE public.group_posts_must_reads ENABLE ROW LEVEL SECURITY;
 
@@ -514,6 +524,8 @@ CREATE TABLE IF NOT EXISTS public.group_posts_comments_reactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_group_posts_comments_reactions_comment_id ON public.group_posts_comments_reactions (comment_id);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE group_posts_comments_reactions;
 
 ALTER TABLE public.group_posts_comments_reactions ENABLE ROW LEVEL SECURITY;
 
