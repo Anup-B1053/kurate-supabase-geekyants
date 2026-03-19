@@ -32,22 +32,22 @@ ALTER TABLE public.media_metadata ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can VIEW media_metadata"
   ON public.media_metadata FOR SELECT
   TO authenticated
-  USING (true);
+  USING (auth.uid() = owner_id);
 
 CREATE POLICY "Users can INSERT media_metadata"
   ON public.media_metadata FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = id);
+  WITH CHECK (auth.uid() = owner_id);
 
 CREATE POLICY "Users can UPDATE media_metadata"
   ON public.media_metadata FOR UPDATE
   TO authenticated
-  USING (auth.uid() = id);
+  USING (auth.uid() = owner_id);
 
 CREATE POLICY "Users can DELETE media_metadata"
   ON public.media_metadata FOR DELETE
   TO authenticated
-  USING (auth.uid() = id);
+  USING (auth.uid() = owner_id);
 
 
 -- ── Profiles ──────────────────────────────────────────────────
