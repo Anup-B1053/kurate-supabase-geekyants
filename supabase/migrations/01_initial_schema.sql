@@ -994,6 +994,9 @@ CREATE INDEX IF NOT EXISTS idx_notif_event_type_event_id ON public.notifications
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+
+
 CREATE POLICY "Users can VIEW own notifs"
   ON public.notifications FOR SELECT
   TO authenticated
@@ -1015,6 +1018,8 @@ CREATE TABLE IF NOT EXISTS public.notification_actors (
   created_at timestamp default now(),
   UNIQUE(notification_id, actor_id)
 );
+
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notification_actors;
 
 
 CREATE INDEX IF NOT EXISTS idx_notif_actors_notif_id ON public.notification_actors (notification_id);
