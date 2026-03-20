@@ -255,7 +255,6 @@ CREATE TABLE IF NOT EXISTS public.conversations (
   group_max_members INTEGER NOT NULL DEFAULT 50,
   group_description VARCHAR(200) NULL,
   group_avatar_id UUID REFERENCES public.media_metadata(id) ON DELETE SET NULL,
-  -- invite_code VARCHAR(30) UNIQUE NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
