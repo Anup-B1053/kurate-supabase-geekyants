@@ -27,17 +27,12 @@ BEGIN
     id,
     first_name,
     last_name,
-    handle,
-    avtar_url
+    handle
   ) VALUES (
     NEW.id,
     NEW.raw_user_meta_data->>'given_name',
     NEW.raw_user_meta_data->>'family_name',
-    v_handle,
-    COALESCE(
-      NEW.raw_user_meta_data->>'avatar_url',
-      NEW.raw_user_meta_data->>'picture'
-    )
+    v_handle
   );
   RETURN NEW;
 END;

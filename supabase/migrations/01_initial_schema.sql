@@ -1,3 +1,55 @@
+-- ── Media Metadata ──────────────────────────────────────────────────
+
+CREATE TYPE provider_enum AS ENUM ('supabase', 's3', 'r2', 'do_spaces', 'gcs');
+
+CREATE TABLE IF NOT EXISTS public.media_metadata (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  -- The core file details (Standard across all providers)
+  file_name TEXT NOT NULL,
+  file_type VARCHAR(100) NOT NULL, -- mime-type: image/webp, video/mp4, etc
+  file_size BIGINT NOT NULL,       -- BIGINT for large files
+  
+  -- The "Where" (This makes it provider-agnostic)
+  provider provider_enum NOT NULL,
+  bucket_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,         -- The path/key inside that bucket
+  
+  -- Access Control
+  is_public BOOLEAN DEFAULT TRUE,
+  owner_id UUID,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(owner_id, provider, file_path, file_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_metadata_bucket_name_file_path ON public.media_metadata (bucket_name, file_path);
+
+ALTER TABLE public.media_metadata ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can VIEW media_metadata"
+  ON public.media_metadata FOR SELECT
+  TO authenticated
+  USING (auth.uid() = owner_id);
+
+CREATE POLICY "Users can INSERT media_metadata"
+  ON public.media_metadata FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = owner_id);
+
+CREATE POLICY "Users can UPDATE media_metadata"
+  ON public.media_metadata FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = owner_id);
+
+CREATE POLICY "Users can DELETE media_metadata"
+  ON public.media_metadata FOR DELETE
+  TO authenticated
+  USING (auth.uid() = owner_id);
+
+
 -- ── Profiles ──────────────────────────────────────────────────
 
 CREATE TYPE theme_pref_enum AS ENUM ('light', 'dark', 'auto');
@@ -9,7 +61,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   handle VARCHAR(50) UNIQUE,
   about TEXT,
   is_onboarded BOOLEAN NOT NULL DEFAULT FALSE,
-  avtar_url VARCHAR(100),
+  avatar_id UUID DEFAULT NULL REFERENCES public.media_metadata(id) ON DELETE SET NULL,
   xp INTEGER NOT NULL DEFAULT 0,
   theme_pref theme_pref_enum NOT NULL DEFAULT 'light',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -37,13 +89,26 @@ CREATE POLICY "Users can UPDATE own profile"
 
 
 
+-- 3. Add the missing reference to Media Metadata
+ALTER TABLE public.media_metadata
+ADD CONSTRAINT fk_owner
+FOREIGN KEY (owner_id) 
+REFERENCES public.profiles(id) 
+ON DELETE SET NULL;
+
+-- ALTER TABLE public.media_metadata
+-- ADD CONSTRAINT unique_media_owner 
+-- UNIQUE(owner_id, provider, file_path, file_name);
+
+
+
 -- ── Companions ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.companions (
   user_id uuid PRIMARY KEY NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   name VARCHAR(50) NOT NULL,
   stage SMALLINT NOT NULL DEFAULT 1,
-  avatar_url text NOT NULL,
+  avatar_id UUID NOT NULL REFERENCES public.media_metadata(id),
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
@@ -85,7 +150,7 @@ CREATE POLICY "Anyone can VIEW interests"
 CREATE TABLE IF NOT EXISTS public.user_interests (
   id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  interest_id UUID UNIQUE NOT NULL REFERENCES public.interests(id) ON DELETE CASCADE,
+  interest_id UUID NOT NULL REFERENCES public.interests(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   UNIQUE (user_id, interest_id)
 );
@@ -189,6 +254,7 @@ CREATE TABLE IF NOT EXISTS public.conversations (
   group_name  VARCHAR(20) UNIQUE DEFAULT null,  -- NULL for DMs, set for groups
   group_max_members INTEGER NOT NULL DEFAULT 50,
   group_description VARCHAR(200) NULL,
+  group_avatar_id UUID REFERENCES public.media_metadata(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -811,6 +877,60 @@ CREATE POLICY "Users can upsert own monthly stats"
 CREATE POLICY "Users can UPDATE own monthly stats"
   ON public.user_stats_monthly FOR UPDATE
   USING (auth.uid() = user_id);
+
+
+
+-- ── Storage Policies ────────────────────────────────────────
+
+-- profile_avatars 
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_0"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_1"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_2"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+  
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_3"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+
+
+-- group_avatars 
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_0"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_1"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_2"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+  
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_3"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+
+
+-- companion_avatars 
+  CREATE POLICY "Give users authenticated access to companion_avatars 1oj01fe_0"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'companion_avatars' AND auth.role() = 'authenticated');
 
 
 
