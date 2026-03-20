@@ -942,7 +942,7 @@ CREATE TYPE device_type_enum AS ENUM ('android', 'ios', 'web');
 
 create table IF NOT EXISTS public.user_devices (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references public.profiles(id) on delete cascade delete,
+  user_id uuid references public.profiles(id) on delete cascade,
   fcm_token text not null unique,
   device_type device_type_enum not null,
   last_seen_at timestamptz default now(),
