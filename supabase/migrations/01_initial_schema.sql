@@ -150,7 +150,7 @@ CREATE POLICY "Anyone can VIEW interests"
 CREATE TABLE IF NOT EXISTS public.user_interests (
   id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  interest_id UUID UNIQUE NOT NULL REFERENCES public.interests(id) ON DELETE CASCADE,
+  interest_id UUID NOT NULL REFERENCES public.interests(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   UNIQUE (user_id, interest_id)
 );
