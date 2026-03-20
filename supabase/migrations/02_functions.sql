@@ -280,3 +280,316 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_update_reading_time
   AFTER UPDATE ON public.reading_sessions
   FOR EACH ROW EXECUTE FUNCTION public.update_reading_time_on_session();
+
+
+-- ═══════════════════════════════════════════════════════════
+-- Notification triggers
+-- ═══════════════════════════════════════════════════════════
+
+-- Enable pg_net for async HTTP calls
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+-- ── Helper: fire FCM edge function asynchronously ─────────
+
+CREATE OR REPLACE FUNCTION public.notify_via_fcm(p_notification_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  PERFORM pg_net.http_post(
+    url     := current_setting('app.supabase_url', true) || '/functions/v1/send-fcm',
+    body    := jsonb_build_object('notification_id', p_notification_id),
+    headers := jsonb_build_object(
+      'Content-Type',  'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.service_role_key', true)
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ── Like: INSERT ───────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_like_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient         UUID;
+  v_notif_id          UUID;
+  v_like_notifs       BOOLEAN;
+  v_push_enabled      BOOLEAN;
+BEGIN
+  -- Get post author
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = NEW.group_post_id;
+
+  -- Skip self-like
+  IF NEW.user_id = v_recipient THEN RETURN NEW; END IF;
+
+  -- Check preferences (default true if no row exists)
+  SELECT like_notifications, push_enabled
+    INTO v_like_notifs, v_push_enabled
+    FROM public.notification_preferences
+   WHERE user_id = v_recipient;
+
+  IF v_like_notifs = FALSE THEN RETURN NEW; END IF;
+
+  -- Find existing aggregated notification for this post
+  SELECT id INTO v_notif_id
+    FROM public.notifications
+   WHERE recipient_id = v_recipient
+     AND event_type = 'like'
+     AND event_id = NEW.group_post_id;
+
+  IF v_notif_id IS NULL THEN
+    -- First like: create notification and fire FCM
+    INSERT INTO public.notifications (recipient_id, actor_id, event_type, event_id, message)
+    VALUES (v_recipient, NEW.user_id, 'like', NEW.group_post_id, 'liked your post')
+    RETURNING id INTO v_notif_id;
+
+    INSERT INTO public.notification_actors (notification_id, actor_id)
+    VALUES (v_notif_id, NEW.user_id)
+    ON CONFLICT DO NOTHING;
+
+    PERFORM public.notify_via_fcm(v_notif_id);
+  ELSE
+    -- Subsequent like: update actor only, no re-push
+    INSERT INTO public.notification_actors (notification_id, actor_id)
+    VALUES (v_notif_id, NEW.user_id)
+    ON CONFLICT DO NOTHING;
+
+    UPDATE public.notifications
+       SET actor_id = NEW.user_id, updated_at = NOW()
+     WHERE id = v_notif_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_like_notification
+  AFTER INSERT ON public.group_posts_likes
+  FOR EACH ROW EXECUTE FUNCTION public.handle_like_insert();
+
+
+-- ── Like: DELETE ───────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_like_delete()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient UUID;
+  v_notif_id  UUID;
+  v_remaining INTEGER;
+BEGIN
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = OLD.group_post_id;
+
+  SELECT id INTO v_notif_id
+    FROM public.notifications
+   WHERE recipient_id = v_recipient
+     AND event_type = 'like'
+     AND event_id = OLD.group_post_id;
+
+  IF v_notif_id IS NULL THEN RETURN OLD; END IF;
+
+  DELETE FROM public.notification_actors
+   WHERE notification_id = v_notif_id AND actor_id = OLD.user_id;
+
+  SELECT COUNT(*) INTO v_remaining
+    FROM public.notification_actors
+   WHERE notification_id = v_notif_id;
+
+  IF v_remaining = 0 THEN
+    DELETE FROM public.notifications WHERE id = v_notif_id;
+  END IF;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_like_delete_notification
+  AFTER DELETE ON public.group_posts_likes
+  FOR EACH ROW EXECUTE FUNCTION public.handle_like_delete();
+
+
+-- ── Must-Read: INSERT ──────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_must_read_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient          UUID;
+  v_notif_id           UUID;
+  v_must_read_notifs   BOOLEAN;
+  v_push_enabled       BOOLEAN;
+BEGIN
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = NEW.group_post_id;
+
+  IF NEW.user_id = v_recipient THEN RETURN NEW; END IF;
+
+  SELECT must_read_notifications, push_enabled
+    INTO v_must_read_notifs, v_push_enabled
+    FROM public.notification_preferences
+   WHERE user_id = v_recipient;
+
+  IF v_must_read_notifs = FALSE THEN RETURN NEW; END IF;
+
+  SELECT id INTO v_notif_id
+    FROM public.notifications
+   WHERE recipient_id = v_recipient
+     AND event_type = 'must_read'
+     AND event_id = NEW.group_post_id;
+
+  IF v_notif_id IS NULL THEN
+    INSERT INTO public.notifications (recipient_id, actor_id, event_type, event_id, message)
+    VALUES (v_recipient, NEW.user_id, 'must_read', NEW.group_post_id, 'marked your post as must-read')
+    RETURNING id INTO v_notif_id;
+
+    INSERT INTO public.notification_actors (notification_id, actor_id)
+    VALUES (v_notif_id, NEW.user_id)
+    ON CONFLICT DO NOTHING;
+
+    PERFORM public.notify_via_fcm(v_notif_id);
+  ELSE
+    INSERT INTO public.notification_actors (notification_id, actor_id)
+    VALUES (v_notif_id, NEW.user_id)
+    ON CONFLICT DO NOTHING;
+
+    UPDATE public.notifications
+       SET actor_id = NEW.user_id, updated_at = NOW()
+     WHERE id = v_notif_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_must_read_notification
+  AFTER INSERT ON public.group_posts_must_reads
+  FOR EACH ROW EXECUTE FUNCTION public.handle_must_read_insert();
+
+
+-- ── Must-Read: DELETE ──────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_must_read_delete()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient UUID;
+  v_notif_id  UUID;
+  v_remaining INTEGER;
+BEGIN
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = OLD.group_post_id;
+
+  SELECT id INTO v_notif_id
+    FROM public.notifications
+   WHERE recipient_id = v_recipient
+     AND event_type = 'must_read'
+     AND event_id = OLD.group_post_id;
+
+  IF v_notif_id IS NULL THEN RETURN OLD; END IF;
+
+  DELETE FROM public.notification_actors
+   WHERE notification_id = v_notif_id AND actor_id = OLD.user_id;
+
+  SELECT COUNT(*) INTO v_remaining
+    FROM public.notification_actors
+   WHERE notification_id = v_notif_id;
+
+  IF v_remaining = 0 THEN
+    DELETE FROM public.notifications WHERE id = v_notif_id;
+  END IF;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_must_read_delete_notification
+  AFTER DELETE ON public.group_posts_must_reads
+  FOR EACH ROW EXECUTE FUNCTION public.handle_must_read_delete();
+
+
+-- ── Comment: INSERT (no aggregation) ──────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_comment_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient        UUID;
+  v_notif_id         UUID;
+  v_comment_notifs   BOOLEAN;
+  v_push_enabled     BOOLEAN;
+BEGIN
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = NEW.group_post_id;
+
+  IF NEW.user_id = v_recipient THEN RETURN NEW; END IF;
+
+  SELECT comment_notifications, push_enabled
+    INTO v_comment_notifs, v_push_enabled
+    FROM public.notification_preferences
+   WHERE user_id = v_recipient;
+
+  IF v_comment_notifs = FALSE THEN RETURN NEW; END IF;
+
+  INSERT INTO public.notifications (recipient_id, actor_id, event_type, event_id, message)
+  VALUES (v_recipient, NEW.user_id, 'comment', NEW.group_post_id, 'commented on your post')
+  RETURNING id INTO v_notif_id;
+
+  PERFORM public.notify_via_fcm(v_notif_id);
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_comment_notification
+  AFTER INSERT ON public.group_posts_comments
+  FOR EACH ROW EXECUTE FUNCTION public.handle_comment_insert();
+
+
+-- ── New Post: fan-out per group member ─────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_new_post_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_content_type    TEXT;
+  v_handle          TEXT;
+  v_group_name      TEXT;
+  v_member          RECORD;
+  v_notif_id        UUID;
+  v_new_post_notifs BOOLEAN;
+  v_push_enabled    BOOLEAN;
+BEGIN
+  SELECT content_type::TEXT INTO v_content_type
+    FROM public.logged_items WHERE id = NEW.logged_item_id;
+
+  SELECT handle INTO v_handle
+    FROM public.profiles WHERE id = NEW.shared_by;
+
+  SELECT group_name INTO v_group_name
+    FROM public.conversations WHERE id = NEW.convo_id;
+
+  FOR v_member IN
+    SELECT user_id FROM public.conversation_members
+     WHERE convo_id = NEW.convo_id AND user_id != NEW.shared_by
+  LOOP
+    SELECT new_post_notifications, push_enabled
+      INTO v_new_post_notifs, v_push_enabled
+      FROM public.notification_preferences
+     WHERE user_id = v_member.user_id;
+
+    IF v_new_post_notifs = FALSE THEN
+      CONTINUE;
+    END IF;
+
+    INSERT INTO public.notifications (recipient_id, actor_id, event_type, event_id, message)
+    VALUES (
+      v_member.user_id,
+      NEW.shared_by,
+      'new_post',
+      NEW.id,
+      v_handle || ' shared a ' || COALESCE(v_content_type, 'post') || ' in ' || COALESCE(v_group_name, 'your group')
+    )
+    RETURNING id INTO v_notif_id;
+
+    PERFORM public.notify_via_fcm(v_notif_id);
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_new_post_notification
+  AFTER INSERT ON public.group_posts
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_post_insert();

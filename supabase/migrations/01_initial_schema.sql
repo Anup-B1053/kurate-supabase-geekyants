@@ -811,3 +811,145 @@ CREATE POLICY "Users can upsert own monthly stats"
 CREATE POLICY "Users can UPDATE own monthly stats"
   ON public.user_stats_monthly FOR UPDATE
   USING (auth.uid() = user_id);
+
+
+
+
+
+  -- ── User devices ──────────────────────────────────────────────────
+
+CREATE TYPE device_type_enum AS ENUM ('android', 'ios', 'web');
+
+create table IF NOT EXISTS public.user_devices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.profiles(id) on delete cascade delete,
+  fcm_token text not null unique,
+  device_type device_type_enum not null,
+  last_seen_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+alter table public.user_devices enable row level security;
+
+CREATE POLICY "Users can VIEW own devices"
+  ON public.user_devices FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can upsert own devices"
+  ON public.user_devices FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can UPDATE own devices"
+  ON public.user_devices FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can DELETE own devices"
+  ON public.user_devices FOR DELETE
+  USING (auth.uid() = user_id);
+
+
+
+
+  -- ── Notifications ──────────────────────────────────────────────────
+
+CREATE TYPE entity_type_enum AS ENUM ('like', 'must_read', 'comment', 'new_post', 'streak_reminder', 'weekly_digest');
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id UUID NOT NULL REFERENCES public.profiles(id) on DELETE CASCADE,
+  actor_id UUID REFERENCES public.profiles(id) on DELETE CASCADE,
+  event_type entity_type_enum NOT NULL,
+  event_id UUID,
+  message VARCHAR(100),
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_recipient_id ON public.notifications (recipient_id);
+CREATE INDEX IF NOT EXISTS idx_notif_actor_id ON public.notifications (actor_id);
+CREATE INDEX IF NOT EXISTS idx_notif_recipient_created_at ON public.notifications (recipient_id, created_at desc);
+CREATE INDEX IF NOT EXISTS idx_notif_unread ON public.notifications (recipient_id) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_notif_event_type_event_id ON public.notifications (event_type, event_id);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can VIEW own notifs"
+  ON public.notifications FOR SELECT
+  TO authenticated
+  USING (auth.uid() = recipient_id);
+
+CREATE POLICY "Users can UPDATE own notifs"
+  ON public.notifications FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = recipient_id);
+
+
+
+  -- ── Notification actors──────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.notification_actors (
+  id uuid primary key default gen_random_uuid(),
+  notification_id uuid references public.notifications(id) on delete cascade,
+  actor_id uuid not null,
+  created_at timestamp default now(),
+  UNIQUE(notification_id, actor_id)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_notif_actors_notif_id ON public.notification_actors (notification_id);
+CREATE INDEX IF NOT EXISTS idx_notif_actors_actor_id ON public.notification_actors (actor_id);
+CREATE INDEX IF NOT EXISTS idx_notif_actors ON public.notification_actors (notification_id, actor_id);
+
+ALTER TABLE public.notification_actors ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can VIEW own notification actors"
+  ON public.notification_actors FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.notifications n
+      WHERE n.id = notification_id AND n.recipient_id = auth.uid()
+    )
+  );
+
+
+
+
+
+  -- ── Notification prefrences──────────────────────────────────────────────────
+
+
+  CREATE TABLE IF NOT EXISTS public.notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique REFERENCES public.profiles(id) on delete cascade,
+  like_notifications boolean default true,
+  must_read_notifications boolean default true,
+  comment_notifications boolean default true,
+  follow_notifications boolean default true,
+  mention_notifications boolean default true,
+  new_post_notifications boolean default true,
+  push_enabled boolean default true,
+  email_enabled boolean default false,
+  updated_at timestamp default now()
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_notif_pref_user_id ON public.notification_preferences (user_id);
+
+ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can VIEW own notifs"
+  ON public.notification_preferences FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can INSERT own notifs"
+  ON public.notification_preferences FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can UPDATE own notifs"
+  ON public.notification_preferences FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id);
