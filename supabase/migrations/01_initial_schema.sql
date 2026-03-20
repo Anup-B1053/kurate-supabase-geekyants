@@ -878,3 +878,57 @@ CREATE POLICY "Users can upsert own monthly stats"
 CREATE POLICY "Users can UPDATE own monthly stats"
   ON public.user_stats_monthly FOR UPDATE
   USING (auth.uid() = user_id);
+
+
+
+-- ── Storage Policies ────────────────────────────────────────
+
+-- profile_avatars 
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_0"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_1"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_2"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+  
+  CREATE POLICY "Give users authenticated access to profile_avatars 1oj01fe_3"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'profile_avatars' AND auth.role() = 'authenticated');
+
+
+-- group_avatars 
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_0"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_1"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_2"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+  
+  CREATE POLICY "Give users authenticated access to group_avatars 1oj01fe_3"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'group_avatars' AND auth.role() = 'authenticated');
+
+
+-- companion_avatars 
+  CREATE POLICY "Give users authenticated access to companion_avatars 1oj01fe_0"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = 'companion_avatars' AND auth.role() = 'authenticated');
