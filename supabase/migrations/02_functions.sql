@@ -8,31 +8,15 @@
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
-DECLARE
-  v_handle TEXT;
-  v_base   TEXT;
 BEGIN
-  -- Derive base handle from email prefix; strip non-alphanumeric chars
-  -- e.g. "john.doe+tag@gmail.com" → "johndoetag"
-  v_base := regexp_replace(split_part(NEW.email, '@', 1), '[^a-zA-Z0-9_]', '', 'g');
-  IF v_base = '' THEN v_base := 'user'; END IF;
-
-  -- Find a unique handle by retrying with a new random suffix on collision
-  LOOP
-    v_handle := v_base || floor(random() * 9000 + 1000)::TEXT;
-    EXIT WHEN NOT EXISTS (SELECT 1 FROM public.profiles WHERE handle = v_handle);
-  END LOOP;
-
   INSERT INTO public.profiles (
     id,
     first_name,
-    last_name,
-    handle
+    last_name
   ) VALUES (
     NEW.id,
     NEW.raw_user_meta_data->>'given_name',
-    NEW.raw_user_meta_data->>'family_name',
-    v_handle
+    NEW.raw_user_meta_data->>'family_name'
   );
   RETURN NEW;
 END;
