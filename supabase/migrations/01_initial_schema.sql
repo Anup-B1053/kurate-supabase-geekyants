@@ -1014,7 +1014,7 @@ CREATE POLICY "Users can UPDATE own notifs"
 CREATE TABLE IF NOT EXISTS public.notification_actors (
   id uuid primary key default gen_random_uuid(),
   notification_id uuid references public.notifications(id) on delete cascade,
-  actor_id uuid not null,
+  actor_id uuid not null REFERENCES public.profiles(id) on delete cascade,
   created_at timestamp default now(),
   UNIQUE(notification_id, actor_id)
 );
