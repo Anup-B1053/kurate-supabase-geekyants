@@ -270,19 +270,19 @@ CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- ── Helper: fire FCM edge function asynchronously ─────────
 
-CREATE OR REPLACE FUNCTION public.notify_via_fcm(p_notification_id UUID)
-RETURNS VOID AS $$
-BEGIN
-  PERFORM pg_net.http_post(
-    url     := current_setting('app.supabase_url', true) || '/functions/v1/send-fcm',
-    body    := jsonb_build_object('notification_id', p_notification_id),
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.service_role_key', true)
-    )
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- CREATE OR REPLACE FUNCTION public.notify_via_fcm(p_notification_id UUID)
+-- RETURNS VOID AS $$
+-- BEGIN
+--   PERFORM pg_net.http_post(
+--     url     := current_setting('app.supabase_url', true) || '/functions/v1/send-fcm',
+--     body    := jsonb_build_object('notification_id', p_notification_id),
+--     headers := jsonb_build_object(
+--       'Content-Type',  'application/json',
+--       'Authorization', 'Bearer ' || current_setting('app.service_role_key', true)
+--     )
+--   );
+-- END;
+-- $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- ── Like: INSERT ───────────────────────────────────────────
@@ -326,7 +326,7 @@ BEGIN
     VALUES (v_notif_id, NEW.user_id)
     ON CONFLICT DO NOTHING;
 
-    PERFORM public.notify_via_fcm(v_notif_id);
+    -- PERFORM public.notify_via_fcm(v_notif_id);
   ELSE
     -- Subsequent like: update actor only, no re-push
     INSERT INTO public.notification_actors (notification_id, actor_id)
@@ -422,7 +422,7 @@ BEGIN
     VALUES (v_notif_id, NEW.user_id)
     ON CONFLICT DO NOTHING;
 
-    PERFORM public.notify_via_fcm(v_notif_id);
+    -- PERFORM public.notify_via_fcm(v_notif_id);
   ELSE
     INSERT INTO public.notification_actors (notification_id, actor_id)
     VALUES (v_notif_id, NEW.user_id)
@@ -601,7 +601,7 @@ BEGIN
   VALUES (v_recipient, NEW.user_id, 'comment', NEW.group_post_id, 'commented on your post')
   RETURNING id INTO v_notif_id;
 
-  PERFORM public.notify_via_fcm(v_notif_id);
+  -- PERFORM public.notify_via_fcm(v_notif_id);
 
   RETURN NEW;
 END;
