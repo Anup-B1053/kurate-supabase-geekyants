@@ -539,6 +539,26 @@ CREATE POLICY group_posts_must_reads_delete ON public.group_posts_must_reads FOR
 
 
 
+-- ──  group post bookmarks ─────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.group_posts_bookmarks (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_post_id UUID NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (group_post_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_posts_bookmarks ON public.group_posts_bookmarks (group_post_id);
+
+ALTER TABLE public.group_posts_bookmarks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY group_posts_bookmarks_select ON public.group_posts_bookmarks FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY group_posts_bookmarks_insert ON public.group_posts_bookmarks FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY group_posts_bookmarks_delete ON public.group_posts_bookmarks FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+
+
 -- ──  group post comments (shown in chat style) ─────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.group_posts_comments (
@@ -972,7 +992,7 @@ CREATE POLICY "Users can DELETE own devices"
 
   -- ── Notifications ──────────────────────────────────────────────────
 
-CREATE TYPE entity_type_enum AS ENUM ('like', 'must_read', 'comment', 'new_post', 'streak_reminder', 'weekly_digest');
+CREATE TYPE entity_type_enum AS ENUM ('like', 'must_read', 'comment', 'new_post', 'streak_reminder', 'weekly_digest', 'bookmark');
 
 CREATE TABLE IF NOT EXISTS public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -1054,6 +1074,7 @@ CREATE POLICY "Users can VIEW own notification actors"
   follow_notifications boolean default true,
   mention_notifications boolean default true,
   new_post_notifications boolean default true,
+  bookmark_notifications boolean default true,
   push_enabled boolean default true,
   email_enabled boolean default false,
   updated_at timestamp default now()

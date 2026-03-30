@@ -481,6 +481,101 @@ CREATE TRIGGER trg_must_read_delete_notification
   FOR EACH ROW EXECUTE FUNCTION public.handle_must_read_delete();
 
 
+-- ── Bookmark: INSERT ──────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_bookmark_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient          UUID;
+  v_notif_id           UUID;
+  v_bookmark_notifs    BOOLEAN;
+  v_push_enabled       BOOLEAN;
+BEGIN
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = NEW.group_post_id;
+
+  IF NEW.user_id = v_recipient THEN RETURN NEW; END IF;
+
+  SELECT bookmark_notifications, push_enabled
+    INTO v_bookmark_notifs, v_push_enabled
+    FROM public.notification_preferences
+   WHERE user_id = v_recipient;
+
+  IF v_bookmark_notifs = FALSE THEN RETURN NEW; END IF;
+
+  SELECT id INTO v_notif_id
+    FROM public.notifications
+   WHERE recipient_id = v_recipient
+     AND event_type = 'bookmark'
+     AND event_id = NEW.group_post_id;
+
+  IF v_notif_id IS NULL THEN
+    INSERT INTO public.notifications (recipient_id, actor_id, event_type, event_id, message)
+    VALUES (v_recipient, NEW.user_id, 'bookmark', NEW.group_post_id, 'saved your post')
+    RETURNING id INTO v_notif_id;
+
+    INSERT INTO public.notification_actors (notification_id, actor_id)
+    VALUES (v_notif_id, NEW.user_id)
+    ON CONFLICT DO NOTHING;
+
+    -- PERFORM public.notify_via_fcm(v_notif_id);
+  ELSE
+    INSERT INTO public.notification_actors (notification_id, actor_id)
+    VALUES (v_notif_id, NEW.user_id)
+    ON CONFLICT DO NOTHING;
+
+    UPDATE public.notifications
+       SET actor_id = NEW.user_id, updated_at = NOW()
+     WHERE id = v_notif_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_bookmark_notification
+  AFTER INSERT ON public.group_posts_bookmarks
+  FOR EACH ROW EXECUTE FUNCTION public.handle_bookmark_insert();
+
+
+-- ── Bookmark: DELETE ──────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.handle_bookmark_delete()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_recipient UUID;
+  v_notif_id  UUID;
+  v_remaining INTEGER;
+BEGIN
+  SELECT shared_by INTO v_recipient FROM public.group_posts WHERE id = OLD.group_post_id;
+
+  SELECT id INTO v_notif_id
+    FROM public.notifications
+   WHERE recipient_id = v_recipient
+     AND event_type = 'bookmark'
+     AND event_id = OLD.group_post_id;
+
+  IF v_notif_id IS NULL THEN RETURN OLD; END IF;
+
+  DELETE FROM public.notification_actors
+   WHERE notification_id = v_notif_id AND actor_id = OLD.user_id;
+
+  SELECT COUNT(*) INTO v_remaining
+    FROM public.notification_actors
+   WHERE notification_id = v_notif_id;
+
+  IF v_remaining = 0 THEN
+    DELETE FROM public.notifications WHERE id = v_notif_id;
+  END IF;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_bookmark_delete_notification
+  AFTER DELETE ON public.group_posts_bookmarks
+  FOR EACH ROW EXECUTE FUNCTION public.handle_bookmark_delete();
+
+
 -- ── Comment: INSERT (no aggregation) ──────────────────────
 
 CREATE OR REPLACE FUNCTION public.handle_comment_insert()
